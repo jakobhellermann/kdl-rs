@@ -387,6 +387,27 @@ fn format_slashdash_block() {
     "#);
 }
 
+// Same input as `format_slashdash_block`, parsed as v1. v1 parses the
+// slashdashed block into the document's trailing rather than leading, so
+// the same preservation rule applies on the trailing-decor path.
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_slashdash_block() {
+    let input = r#"
+/-window-rule {
+    geometry-corner-radius 8
+    clip-to-geometry "true"
+}
+"#;
+
+    assert_snapshot!(format_v1(input), @r#"
+    /-window-rule {
+        geometry-corner-radius 8
+        clip-to-geometry "true"
+    }
+    "#);
+}
+
 // Slashdashed block with mis-indented inner content: autoformat preserves
 // the original indentation rather than fixing it. This is a deliberate
 // "we don't know how to format slashdash, leave it alone" stance, not an

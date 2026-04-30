@@ -221,18 +221,35 @@ pub(crate) fn autoformat_trailing_indented(
         result.push('\n');
     }
     if !decor.is_empty() && !no_comments {
-        for comment in decor.lines() {
-            let trimmed = comment.trim();
-            if trimmed.is_empty() {
-                writeln!(result).unwrap();
-                continue;
-            }
-            if let Some(config) = indent {
-                for _ in 0..config.indent_level {
-                    result.push_str(config.indent);
+        // The decor may contain multi-line constructs we don't know how to
+        // re-indent (slashdashed nodes with children, mostly). If every
+        // non-blank line starts with `//`, it's safe to trim and re-indent;
+        // otherwise preserve verbatim. Mirrors the same rule in
+        // `autoformat_leading`.
+        let all_lines_are_comments = decor
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .all(|l| l.starts_with("//"));
+        if all_lines_are_comments {
+            for comment in decor.lines() {
+                let trimmed = comment.trim();
+                if trimmed.is_empty() {
+                    writeln!(result).unwrap();
+                    continue;
                 }
+                if let Some(config) = indent {
+                    for _ in 0..config.indent_level {
+                        result.push_str(config.indent);
+                    }
+                }
+                writeln!(result, "{trimmed}").unwrap();
             }
-            writeln!(result, "{trimmed}").unwrap();
+        } else {
+            result.push_str(decor);
+            if !result.ends_with('\n') {
+                result.push('\n');
+            }
         }
     }
     *decor = result;
