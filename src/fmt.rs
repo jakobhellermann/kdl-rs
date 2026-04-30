@@ -145,26 +145,42 @@ pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>
     if !config.no_comments {
         let input = leading.trim();
         if !input.is_empty() {
-            // Preserve blank lines between comment lines too.
-            let mut prev_blank = false;
-            let mut first = true;
-            for line in input.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    if !first {
-                        prev_blank = true;
+            // The leading decor may contain multi-line constructs we don't
+            // know how to re-indent (slashdashed nodes with children, mostly).
+            // Detect "every non-blank line is a `//` comment" — only then is
+            // it safe to trim and re-indent. Otherwise preserve verbatim.
+            let all_lines_are_comments = input
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .all(|l| l.starts_with("//"));
+            if all_lines_are_comments {
+                // Preserve blank lines between comment lines too.
+                let mut prev_blank = false;
+                let mut first = true;
+                for line in input.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        if !first {
+                            prev_blank = true;
+                        }
+                        continue;
                     }
-                    continue;
+                    if prev_blank {
+                        result.push('\n');
+                        prev_blank = false;
+                    }
+                    for _ in 0..config.indent_level {
+                        result.push_str(config.indent);
+                    }
+                    writeln!(result, "{trimmed}").unwrap();
+                    first = false;
                 }
-                if prev_blank {
+            } else {
+                result.push_str(input);
+                if !result.ends_with('\n') {
                     result.push('\n');
-                    prev_blank = false;
                 }
-                for _ in 0..config.indent_level {
-                    result.push_str(config.indent);
-                }
-                writeln!(result, "{trimmed}").unwrap();
-                first = false;
             }
             if trailing_blank_after_comments {
                 result.push('\n');

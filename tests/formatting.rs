@@ -274,11 +274,7 @@ node "kept"
 }
 
 // BUG: slashdashed entries are silently dropped during autoformat. The
-// parser stores `/-key="hidden"` in the next entry's `leading` field, and
-// `KdlEntry::autoformat` clears `format = None` to canonicalize spacing —
-// taking the slashdashed content with it. Fixing this likely needs the
-// slashdashed entry to be modeled as its own KdlEntry (with a commented-
-// out flag) rather than buried in another entry's whitespace.
+// `/-key="hidden"` should round-trip; instead it disappears.
 #[test]
 fn format_slashdash_entry() {
     let input = r#"node "a" /-key="hidden" "b""#;
@@ -341,7 +337,11 @@ outer {
 
 #[test]
 fn format_custom_indent_tab() {
-    let input = "outer {\n    inner\n}\n";
+    let input = r#"
+outer {
+    inner
+}
+"#;
     let mut doc = KdlDocument::parse(input).unwrap();
     doc.autoformat_config(&kdl::FormatConfig::builder().indent("\t").build());
     assert_snapshot!(doc.to_string(), @"
@@ -366,4 +366,87 @@ binds  {
         }
     }
     "#);
+}
+
+// A multi-line slashdashed node-with-children round-trips with its inner
+// indentation intact.
+#[test]
+fn format_slashdash_block() {
+    let input = r#"
+/-window-rule {
+    geometry-corner-radius 8
+    clip-to-geometry "true"
+}
+"#;
+
+    assert_snapshot!(format(input), @r#"
+    /-window-rule {
+        geometry-corner-radius 8
+        clip-to-geometry "true"
+    }
+    "#);
+}
+
+// Slashdashed block with mis-indented inner content: autoformat preserves
+// the original indentation rather than fixing it. This is a deliberate
+// "we don't know how to format slashdash, leave it alone" stance, not an
+// active formatting choice. Pinned so a future "actually re-indent
+// slashdash" change is visible in the diff.
+#[test]
+fn format_slashdash_block_misindented_input() {
+    let input = r#"
+/-window-rule {
+  geometry-corner-radius 8
+      clip-to-geometry "true"
+}
+"#;
+    assert_snapshot!(format(input), @r#"
+    /-window-rule {
+      geometry-corner-radius 8
+          clip-to-geometry "true"
+    }
+    "#);
+}
+
+// BUG: comment lines bracketing a slashdashed block keep their source
+// indentation instead of being normalized. The first line is incidentally
+// rescued (it's at the very start of the leading decor), but the trailing
+// `// trailer` survives with its 8-space mis-indent. No real-world config
+// has surfaced this shape yet.
+#[test]
+fn format_slashdash_block_mixed_with_comments() {
+    let input = r#"
+    // header
+/-window-rule {
+        geometry-corner-radius 8
+}
+        // trailer
+node
+"#;
+    assert_snapshot!(format(input), @r#"
+    // header
+    /-window-rule {
+            geometry-corner-radius 8
+    }
+            // trailer
+    node
+    "#);
+}
+
+// Slashdashed block whose body happens to contain only `//` lines. The
+// whole block round-trips verbatim, including the inner indentation.
+#[test]
+fn format_slashdash_block_with_inner_comments_only() {
+    let input = r#"
+/-block {
+    // a
+    // b
+}
+"#;
+    assert_snapshot!(format(input), @"
+    /-block {
+        // a
+        // b
+    }
+    ");
 }
