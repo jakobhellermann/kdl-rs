@@ -275,6 +275,10 @@ impl KdlNode {
 
     /// Auto-formats this node and its contents according to `config`.
     pub fn autoformat_config(&mut self, config: &FormatConfig<'_>) {
+        self.autoformat_config_inner(config, true);
+    }
+
+    pub(crate) fn autoformat_config_inner(&mut self, config: &FormatConfig<'_>, is_first: bool) {
         if let Some(KdlNodeFormat {
             leading,
             before_terminator,
@@ -284,7 +288,7 @@ impl KdlNode {
             ..
         }) = self.format_mut()
         {
-            crate::fmt::autoformat_leading(leading, config);
+            crate::fmt::autoformat_leading(leading, config, is_first);
             crate::fmt::autoformat_trailing(before_terminator, config.no_comments);
             crate::fmt::autoformat_trailing(trailing, config.no_comments);
             *trailing = trailing.trim().into();

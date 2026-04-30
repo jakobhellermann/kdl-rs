@@ -111,19 +111,49 @@ impl<'a> FormatConfigBuilder<'a> {
     }
 }
 
-pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>) {
+pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>, is_first: bool) {
     let mut result = String::new();
+    // Count leading newlines to detect blank lines before this item. For
+    // a non-first item (subsequent node, or after another comment), a
+    // single `\n` is "blank line before me" because the previous content
+    // already terminated itself. For a first item (after opening brace or
+    // document start), the first `\n` is just "I'm on a new line" and
+    // doesn't represent a blank.
+    let leading_newlines = leading.bytes().take_while(|&b| b == b'\n').count();
+    let blank_lines_before = if is_first {
+        leading_newlines.saturating_sub(1)
+    } else {
+        leading_newlines
+    };
+    // Cap at 1 to avoid runaway whitespace; one blank line is enough to
+    // signal grouping.
+    let blank_lines_before = blank_lines_before.min(1);
+    for _ in 0..blank_lines_before {
+        result.push('\n');
+    }
     if !config.no_comments {
         let input = leading.trim();
         if !input.is_empty() {
+            // Preserve blank lines between comment lines too.
+            let mut prev_blank = false;
+            let mut first = true;
             for line in input.lines() {
                 let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    for _ in 0..config.indent_level {
-                        result.push_str(config.indent);
+                if trimmed.is_empty() {
+                    if !first {
+                        prev_blank = true;
                     }
-                    writeln!(result, "{trimmed}").unwrap();
+                    continue;
                 }
+                if prev_blank {
+                    result.push('\n');
+                    prev_blank = false;
+                }
+                for _ in 0..config.indent_level {
+                    result.push_str(config.indent);
+                }
+                writeln!(result, "{trimmed}").unwrap();
+                first = false;
             }
         }
     }

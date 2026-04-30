@@ -252,12 +252,12 @@ impl KdlDocument {
     /// Formats the document according to `config`.
     pub fn autoformat_config(&mut self, config: &FormatConfig<'_>) {
         if let Some(KdlDocumentFormat { leading, .. }) = (*self).format_mut() {
-            crate::fmt::autoformat_leading(leading, config);
+            crate::fmt::autoformat_leading(leading, config, true);
         }
         let mut has_nodes = false;
-        for node in &mut self.nodes {
+        for (i, node) in self.nodes.iter_mut().enumerate() {
             has_nodes = true;
-            node.autoformat_config(config);
+            node.autoformat_config_inner(config, i == 0);
         }
         if let Some(KdlDocumentFormat { trailing, .. }) = (*self).format_mut() {
             crate::fmt::autoformat_trailing(trailing, config.no_comments);

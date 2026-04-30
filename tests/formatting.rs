@@ -99,7 +99,9 @@ spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc fals
     // https://yalter.github.io/niri/Configuration:-Introduction
     include input.kdl
     include workspaces.kdl
+
     screenshot-path "~/Pictures/Screenshots/%Y-%m-%d %H:%M:%S.png"
+
     spawn-at-startup awww-daemon
     spawn-at-startup awww-daemon -n backdrop
     spawn-at-startup swayosd-server
@@ -171,10 +173,6 @@ input {
     ");
 }
 
-// BUG: Blank lines between top-level nodes are collapsed, even though blank
-// lines often carry intentional grouping (see also `format_example`, which
-// loses blank lines between `include`/`screenshot-path`/`spawn-at-startup`
-// groups).
 #[test]
 fn format_blank_lines_between_top_level_nodes() {
     let input = r#"
@@ -182,13 +180,13 @@ node "a"
 
 node "b"
 "#;
-    assert_snapshot!(format(input), @r#"
+    assert_snapshot!(format(input), @"
     node a
+
     node b
-    "#);
+    ");
 }
 
-// BUG: Same as above, but for comments rather than nodes.
 #[test]
 fn format_blank_lines_between_top_level_comments() {
     let input = r#"
@@ -196,10 +194,11 @@ fn format_blank_lines_between_top_level_comments() {
 
 // second
 "#;
-    assert_snapshot!(format(input), @r#"
+    assert_snapshot!(format(input), @"
     // first
+
     // second
-    "#);
+    ");
 }
 
 #[test]
