@@ -369,8 +369,16 @@ impl KdlNode {
                         .and_then(|n| n.format())
                         .is_some_and(|f| !f.leading.is_empty() && !f.leading.contains('\n')));
             if single_line {
-                // Recurse so nested single-line blocks also normalize, then
-                // override the child's outer format for inline rendering.
+                // Capture whether the source had `;` *before* recursing,
+                // since the recursive autoformat will clobber the child's
+                // terminator. Preserved `;` keeps the result valid v1
+                // (where `}` isn't an implicit terminator) and respects
+                // a deliberately-written separator in v2.
+                let keep_semicolon = children
+                    .nodes()
+                    .first()
+                    .and_then(|n| n.format())
+                    .is_some_and(|f| f.terminator.trim_start().starts_with(';'));
                 children.autoformat_config(&FormatConfig {
                     indent_level: config.indent_level + 1,
                     ..*config
@@ -379,7 +387,7 @@ impl KdlNode {
                     child.format = Some(KdlNodeFormat {
                         leading: " ".into(),
                         before_children: " ".into(),
-                        terminator: "".into(),
+                        terminator: if keep_semicolon { ";".into() } else { "".into() },
                         ..Default::default()
                     });
                 }
@@ -461,6 +469,21 @@ impl KdlNode {
         self.name = v1_name.into();
         for entry in self.iter_mut() {
             entry.ensure_v1();
+        }
+        // v1's grammar requires every node to end with `;`, a newline, a
+        // single-line comment, or eof. v2 allows an empty terminator before
+        // a closing `}`, so a v2-formatted inline block like `a { b }`
+        // would produce invalid v1. Insert `;` and shift any pre-existing
+        // separator whitespace to follow it, so `a { b }` becomes
+        // `a { b; }` rather than `a { b ;}`.
+        if let Some(format) = self.format_mut() {
+            if format.terminator.is_empty() {
+                let separator = std::mem::take(&mut format.before_terminator);
+                format.terminator = ";".into();
+                if !separator.is_empty() {
+                    format.trailing = format!("{separator}{}", format.trailing);
+                }
+            }
         }
         self.children = self.children.take().map(|mut children| {
             children.ensure_v1();

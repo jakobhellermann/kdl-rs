@@ -362,7 +362,7 @@ binds  {
 
     assert_snapshot!(format(input), @r#"
     binds {
-        Mod+o hotkey-overlay-title="null" { show-hotkey-overlay }
+        Mod+o hotkey-overlay-title="null" { show-hotkey-overlay; }
     }
     "#);
 }
@@ -459,11 +459,35 @@ fn format_singleline_block_trailing_newline_collapses() {
     assert_snapshot!(format(input), @"a { b }");
 }
 
-// `a { b; }` (semicolon-terminated single child) collapses to single-line.
+// `a { b; }` (semicolon-terminated single child): the `;` is preserved
+// since the source had one. Stripping it would (a) silently drop a
+// deliberately-written separator and (b) produce invalid v1.
 #[test]
 fn format_singleline_block_with_semicolon() {
     let input = "a { b; }\n";
-    assert_snapshot!(format(input), @"a { b }");
+    assert_snapshot!(format(input), @"a { b; }");
+}
+
+// `a { b; }` parsed as v1: `;` is preserved by autoformat, since the source
+// had it. (v1 grammar requires `;` here — `}` is not an implicit
+// terminator — so stripping it would produce invalid v1.)
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_singleline_block_keeps_semicolon() {
+    let input = "a { b; }\n";
+    assert_snapshot!(format_v1(input), @"a { b; }");
+}
+
+// `a { b }` parsed as v2 (where it's legal), then run through `ensure_v1`:
+// the missing `;` is added so the output is valid v1.
+#[test]
+#[cfg(feature = "v1")]
+fn ensure_v1_adds_semicolon_to_inline_block() {
+    let input = "a { b }\n";
+    let mut doc = KdlDocument::parse_v2(input).unwrap();
+    doc.ensure_v1();
+    assert_snapshot!(doc.to_string(), @"a { b; }");
+    KdlDocument::parse_v1(&doc.to_string()).expect("ensure_v1 output must parse as v1");
 }
 
 // `a {\n b \n}` was multi-line in the source (newline after opening brace),
