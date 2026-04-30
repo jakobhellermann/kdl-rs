@@ -288,7 +288,18 @@ impl KdlNode {
             crate::fmt::autoformat_trailing(before_terminator, config.no_comments);
             crate::fmt::autoformat_trailing(trailing, config.no_comments);
             *trailing = trailing.trim().into();
-            if !terminator.starts_with('\n') {
+            // A single-line comment is itself a valid node terminator (it
+            // ends in a newline), so preserve it instead of overwriting with
+            // a bare `\n`. Drop any leading whitespace from before_terminator
+            // and re-insert exactly one space so the comment renders as
+            // `node // comment`.
+            let terminator_is_comment =
+                terminator.trim_start().starts_with("//") && !config.no_comments;
+            if terminator_is_comment {
+                *before_terminator = " ".into();
+            } else if config.no_comments && terminator.trim_start().starts_with("//") {
+                *terminator = "\n".into();
+            } else if !terminator.starts_with('\n') {
                 *terminator = "\n".into();
             }
             if let Some(c) = trailing.chars().next() {

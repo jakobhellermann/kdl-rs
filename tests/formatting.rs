@@ -130,7 +130,7 @@ fn format_comment_end_of_line() {
 option "yes" // foo
 "#;
 
-    assert_snapshot!(format(input), @"option yes");
+    assert_snapshot!(format(input), @"option yes // foo");
 }
 
 #[test]
