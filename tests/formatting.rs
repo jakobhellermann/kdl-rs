@@ -408,6 +408,62 @@ fn format_v1_slashdash_block() {
     "#);
 }
 
+// Children block whose first item is a comment, with no blank line in the
+// source. The comment should sit directly under the opening brace.
+#[test]
+fn format_children_starting_with_comment() {
+    let input = r#"
+trackpoint {
+    // off
+    // natural-scroll
+}
+"#;
+
+    assert_snapshot!(format(input), @r#"
+    trackpoint {
+        // off
+        // natural-scroll
+    }
+    "#);
+}
+
+// Multiple consecutive blank lines collapse to a single blank. Documents
+// the cap; surfaced in real configs (kdlfmt diff against niri's ui.kdl).
+#[test]
+fn format_collapses_multiple_blank_lines() {
+    let input = r#"
+node "a"
+
+
+
+node "b"
+"#;
+    assert_snapshot!(format(input), @"
+    node a
+
+    node b
+    ");
+}
+
+// Same shape, parsed as v1.
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_children_starting_with_comment() {
+    let input = r#"
+trackpoint {
+    // off
+    // natural-scroll
+}
+"#;
+
+    assert_snapshot!(format_v1(input), @r#"
+    trackpoint {
+        // off
+        // natural-scroll
+    }
+    "#);
+}
+
 // Slashdashed block with mis-indented inner content: autoformat preserves
 // the original indentation rather than fixing it. This is a deliberate
 // "we don't know how to format slashdash, leave it alone" stance, not an

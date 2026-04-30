@@ -304,7 +304,12 @@ impl KdlNode {
                     trailing.drain(..leading_ws + comment_line.len());
                 }
             }
-            crate::fmt::autoformat_trailing_indented(trailing, config.no_comments, Some(config));
+            crate::fmt::autoformat_trailing_indented(
+                trailing,
+                config.no_comments,
+                Some(config),
+                true,
+            );
             *trailing = trailing.trim().into();
             // A single-line comment is itself a valid node terminator (it
             // ends in a newline), so preserve it instead of overwriting with

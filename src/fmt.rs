@@ -194,16 +194,25 @@ pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>
 }
 
 pub(crate) fn autoformat_trailing(decor: &mut String, no_comments: bool) {
-    autoformat_trailing_indented(decor, no_comments, None);
+    autoformat_trailing_indented(decor, no_comments, None, true);
 }
 
 /// Like [`autoformat_trailing`], but re-indents each non-empty line at the
 /// given config's indent level. Used for trailing decor that lives at the
 /// statement level (between nodes, at the end of a children block).
+///
+/// `preceded_by_content` is true when something appeared before this
+/// trailing decor in the same container (a previous node, or the outer
+/// document). When false (e.g. a children block with no nodes, where the
+/// trailing decor is the only content), a single leading newline is just
+/// "this content starts on a new line after the opening brace" rather
+/// than a blank line, mirroring the same distinction in
+/// [`autoformat_leading`].
 pub(crate) fn autoformat_trailing_indented(
     decor: &mut String,
     no_comments: bool,
     indent: Option<&FormatConfig<'_>>,
+    preceded_by_content: bool,
 ) {
     if decor.is_empty() {
         return;
@@ -211,10 +220,18 @@ pub(crate) fn autoformat_trailing_indented(
     // A blank line between the previous node and the start of the trailing
     // decor is encoded as one or more leading newlines: the previous node
     // already terminated itself, so any newline here represents a blank.
-    let leading_blank = decor
+    // When nothing precedes us, the first newline is just the line break
+    // after the opening brace and is not a blank.
+    let leading_newlines = decor
         .bytes()
         .take_while(|&b| b == b'\n' || b == b' ' || b == b'\t')
-        .any(|b| b == b'\n');
+        .filter(|&b| b == b'\n')
+        .count();
+    let leading_blank = if preceded_by_content {
+        leading_newlines > 0
+    } else {
+        leading_newlines > 1
+    };
     *decor = decor.trim().to_string();
     let mut result = String::new();
     if leading_blank && !decor.is_empty() && !no_comments {

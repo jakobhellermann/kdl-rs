@@ -263,7 +263,12 @@ impl KdlDocument {
             leading, trailing, ..
         }) = (*self).format_mut()
         {
-            crate::fmt::autoformat_trailing_indented(trailing, config.no_comments, Some(config));
+            crate::fmt::autoformat_trailing_indented(
+                trailing,
+                config.no_comments,
+                Some(config),
+                has_nodes,
+            );
             // If the block is otherwise empty (no nodes, no leading content),
             // make sure there's at least one newline so the closing brace
             // doesn't end up on the same line as the opening one. When the
