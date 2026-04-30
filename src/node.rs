@@ -290,6 +290,20 @@ impl KdlNode {
         {
             crate::fmt::autoformat_leading(leading, config, is_first);
             crate::fmt::autoformat_trailing(before_terminator, config.no_comments);
+            // v1 doesn't recognize single-line-comment as a node terminator,
+            // so an inline `// comment` after a node's last entry lands in
+            // `trailing` rather than `terminator`. Re-attach it to the
+            // terminator so it renders inline (matching v2 behavior) instead
+            // of being kicked onto its own line by trailing-decor handling.
+            if !config.no_comments && terminator == "\n" {
+                let leading_ws = trailing.len() - trailing.trim_start().len();
+                let after_ws = &trailing[leading_ws..];
+                if after_ws.starts_with("//") {
+                    let comment_line = after_ws.lines().next().unwrap_or("");
+                    *terminator = format!("{comment_line}\n");
+                    trailing.drain(..leading_ws + comment_line.len());
+                }
+            }
             crate::fmt::autoformat_trailing_indented(trailing, config.no_comments, Some(config));
             *trailing = trailing.trim().into();
             // A single-line comment is itself a valid node terminator (it

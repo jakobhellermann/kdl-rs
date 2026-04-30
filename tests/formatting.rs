@@ -74,6 +74,24 @@ fn format(input: &str) -> String {
     doc.to_string()
 }
 
+#[cfg(feature = "v1")]
+#[track_caller]
+fn format_v1(input: &str) -> String {
+    let mut doc = match KdlDocument::parse_v1(input) {
+        Ok(doc) => doc,
+        Err(e) => {
+            let mut rendered = String::new();
+            miette::GraphicalReportHandler::new()
+                .with_theme(miette::GraphicalTheme::unicode_nocolor())
+                .render_report(&mut rendered, &e)
+                .unwrap();
+            panic!("failed to parse KDL v1 document:\n{rendered}");
+        }
+    };
+    doc.autoformat();
+    doc.to_string()
+}
+
 #[test]
 fn format_example() {
     let input = r#"
@@ -135,6 +153,16 @@ option "yes" // foo
 "#;
 
     assert_snapshot!(format(input), @"option yes // foo");
+}
+
+// Same input as `format_comment_end_of_line`, but parsed as v1. The v1
+// grammar doesn't include single-line-comment as a node terminator, so the
+// `// foo` lands in the node's `trailing` field with a leading space.
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_comment_end_of_line() {
+    let input = "option \"yes\" // foo\n";
+    assert_snapshot!(format_v1(input), @"option yes // foo");
 }
 
 #[test]
