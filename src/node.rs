@@ -349,23 +349,63 @@ impl KdlNode {
             entry.autoformat();
         }
         if let Some(children) = self.children.as_mut() {
-            children.autoformat_config(&FormatConfig {
-                indent_level: config.indent_level + 1,
-                ..*config
-            });
-            if let Some(KdlDocumentFormat { leading, trailing }) = children.format_mut() {
-                // Strip trailing whitespace from children.leading: the first
-                // child's own `leading` provides its indentation, so leaving
-                // the indent here would double it. Keep the content (which
-                // may include comment-only blocks) and ensure the block
-                // starts on a new line after `{`.
-                *leading = leading.trim_end_matches([' ', '\t']).into();
-                if !leading.starts_with('\n') {
-                    leading.insert(0, '\n');
+            // The block is treated as single-line iff:
+            //  - it has zero children and no comments hiding in the
+            //    document-level leading/trailing (so `{ }` is genuinely
+            //    empty), or
+            //  - it has one child whose source-form leading shows it was on
+            //    the same line as the opening `{` (non-empty leading, no
+            //    embedded newline). Multiple children always go multi-line.
+            let block_is_empty_of_content = children.nodes().is_empty()
+                && (config.no_comments
+                    || children.format().is_none_or(|f| {
+                        !f.leading.contains("//") && !f.trailing.contains("//")
+                    }));
+            let single_line = block_is_empty_of_content
+                || (children.nodes().len() == 1
+                    && children
+                        .nodes()
+                        .first()
+                        .and_then(|n| n.format())
+                        .is_some_and(|f| !f.leading.is_empty() && !f.leading.contains('\n')));
+            if single_line {
+                // Recurse so nested single-line blocks also normalize, then
+                // override the child's outer format for inline rendering.
+                children.autoformat_config(&FormatConfig {
+                    indent_level: config.indent_level + 1,
+                    ..*config
+                });
+                if let Some(child) = children.nodes_mut().first_mut() {
+                    child.format = Some(KdlNodeFormat {
+                        leading: " ".into(),
+                        before_children: " ".into(),
+                        terminator: "".into(),
+                        ..Default::default()
+                    });
                 }
-                // Closing `}` sits at the parent's indent level.
-                for _ in 0..config.indent_level {
-                    trailing.push_str(config.indent);
+                children.set_format(KdlDocumentFormat {
+                    leading: "".into(),
+                    trailing: " ".into(),
+                });
+            } else {
+                children.autoformat_config(&FormatConfig {
+                    indent_level: config.indent_level + 1,
+                    ..*config
+                });
+                if let Some(KdlDocumentFormat { leading, trailing }) = children.format_mut() {
+                    // Strip trailing whitespace from children.leading: the
+                    // first child's own `leading` provides its indentation,
+                    // so leaving the indent here would double it. Keep the
+                    // content (which may include comment-only blocks) and
+                    // ensure the block starts on a new line after `{`.
+                    *leading = leading.trim_end_matches([' ', '\t']).into();
+                    if !leading.starts_with('\n') {
+                        leading.insert(0, '\n');
+                    }
+                    // Closing `}` sits at the parent's indent level.
+                    for _ in 0..config.indent_level {
+                        trailing.push_str(config.indent);
+                    }
                 }
             }
         }

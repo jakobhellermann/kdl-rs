@@ -14,12 +14,13 @@ fn build_and_format() {
     doc.nodes_mut().push(a);
     doc.autoformat();
     let fmt = doc.to_string();
+    // `c` has empty children, which renders inline. The outer blocks are
+    // multi-line because they have multiple/non-inline content.
     assert_eq!(
         fmt,
         r#"a {
     b {
-        c {
-        }
+        c { }
     }
 }
 "#
@@ -361,9 +362,7 @@ binds  {
 
     assert_snapshot!(format(input), @r#"
     binds {
-        Mod+o hotkey-overlay-title="null" {
-            show-hotkey-overlay
-        }
+        Mod+o hotkey-overlay-title="null" { show-hotkey-overlay }
     }
     "#);
 }
@@ -443,6 +442,58 @@ node "b"
 
     node b
     ");
+}
+
+// `a { b }` (single-line block, one child) round-trips as single-line.
+#[test]
+fn format_singleline_block_one_child() {
+    let input = "a { b }\n";
+    assert_snapshot!(format(input), @"a { b }");
+}
+
+// `a { b\n}` (trailing newline before `}` only) collapses to single-line:
+// the inner newline is just trailing whitespace.
+#[test]
+fn format_singleline_block_trailing_newline_collapses() {
+    let input = "a { b\n}\n";
+    assert_snapshot!(format(input), @"a { b }");
+}
+
+// `a { b; }` (semicolon-terminated single child) collapses to single-line.
+#[test]
+fn format_singleline_block_with_semicolon() {
+    let input = "a { b; }\n";
+    assert_snapshot!(format(input), @"a { b }");
+}
+
+// `a {\n b \n}` was multi-line in the source (newline after opening brace),
+// so it stays multi-line.
+#[test]
+fn format_multiline_block_stays_multiline() {
+    let input = r#"
+a {
+    b
+}
+"#;
+    assert_snapshot!(format(input), @r#"
+    a {
+        b
+    }
+    "#);
+}
+
+// `a { b; c }` (single-line, two children) gets normalized to multi-line:
+// `;` is the only legal single-line separator and we consistently choose
+// the multi-line form for multi-child blocks.
+#[test]
+fn format_singleline_block_multiple_children_becomes_multiline() {
+    let input = "a { b; c }\n";
+    assert_snapshot!(format(input), @r#"
+    a {
+        b
+        c
+    }
+    "#);
 }
 
 // Same shape, parsed as v1.

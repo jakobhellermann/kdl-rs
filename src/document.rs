@@ -837,17 +837,7 @@ foo 1 bar=0xdeadbeef {
     fn simple_autoformat() -> miette::Result<()> {
         let mut doc: KdlDocument = "a { b { c { }; }; }".parse().unwrap();
         KdlDocument::autoformat(&mut doc);
-        assert_eq!(
-            doc.to_string(),
-            r#"a {
-    b {
-        c {
-
-        }
-    }
-}
-"#
-        );
+        assert_eq!(doc.to_string(), "a { b { c { } } }\n");
         Ok(())
     }
 
@@ -861,17 +851,7 @@ foo 1 bar=0xdeadbeef {
                 ..Default::default()
             },
         );
-        assert_eq!(
-            doc.to_string(),
-            r#"a {
-  b {
-    c {
-
-    }
-  }
-}
-"#
-        );
+        assert_eq!(doc.to_string(), "a { b { c { } } }\n");
         Ok(())
     }
 
@@ -885,7 +865,7 @@ foo 1 bar=0xdeadbeef {
                 ..Default::default()
             },
         );
-        assert_eq!(doc.to_string(), "a {\n\tb {\n\t\tc {\n\n\t\t}\n\t}\n}\n");
+        assert_eq!(doc.to_string(), "a { b { c { } } }\n");
         Ok(())
     }
 
@@ -896,14 +876,12 @@ foo 1 bar=0xdeadbeef {
                 .parse()
                 .unwrap();
         KdlDocument::autoformat_no_comments(&mut doc);
+        // Outer `a { ... }` was multi-line in the source (newline after `{`),
+        // so it stays multi-line. Inner `b { c { ... }; }` was single-line.
         assert_eq!(
             doc.to_string(),
             r#"a {
-    b {
-        c {
-
-        }
-    }
+    b { c { } }
 }
 "#
         );
