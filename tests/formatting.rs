@@ -1,3 +1,4 @@
+use insta::assert_snapshot;
 use kdl::{KdlDocument, KdlNode};
 
 #[test]
@@ -54,4 +55,116 @@ fn ensure_v1_preserves_raw_string_with_backslash_slash() {
     let mut doc = KdlDocument::parse_v1(input).unwrap();
     doc.ensure_v1();
     assert_eq!(doc.to_string(), input);
+}
+
+#[track_caller]
+fn format(input: &str) -> String {
+    let mut doc = match KdlDocument::parse_v2(input) {
+        Ok(doc) => doc,
+        Err(e) => {
+            let mut rendered = String::new();
+            miette::GraphicalReportHandler::new()
+                .with_theme(miette::GraphicalTheme::unicode_nocolor())
+                .render_report(&mut rendered, &e)
+                .unwrap();
+            panic!("failed to parse KDL document:\n{rendered}");
+        }
+    };
+    doc.autoformat();
+    doc.to_string()
+}
+
+#[test]
+fn format_example() {
+    let input = r#"
+// https://yalter.github.io/niri/Configuration:-Introduction
+
+include "input.kdl"
+include "workspaces.kdl"
+
+screenshot-path "~/Pictures/Screenshots/%Y-%m-%d %H:%M:%S.png"
+
+spawn-at-startup "awww-daemon"
+spawn-at-startup "awww-daemon" "-n" "backdrop"
+spawn-at-startup "swayosd-server"
+spawn-at-startup "~/.local/share/scripts/launch-waybar"
+spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc false"
+
+// TODO
+// - screenshot window
+// - toggle column for next window
+"#;
+
+    assert_snapshot!(format(input), @r#"
+    // https://yalter.github.io/niri/Configuration:-Introduction
+    include input.kdl
+    include workspaces.kdl
+    screenshot-path "~/Pictures/Screenshots/%Y-%m-%d %H:%M:%S.png"
+    spawn-at-startup awww-daemon
+    spawn-at-startup awww-daemon -n backdrop
+    spawn-at-startup swayosd-server
+    spawn-at-startup "~/.local/share/scripts/launch-waybar"
+    spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc false"
+     // TODO
+    // - screenshot window
+    // - toggle column for next window
+    "#);
+}
+
+#[test]
+fn format_comment_newline() {
+    let input = r#"
+option "yes"
+// TODO
+"#;
+
+    assert_snapshot!(format(input), @"
+    option yes
+     // TODO
+    ");
+}
+
+#[test]
+fn format_comment_end_of_line() {
+    let input = r#"
+option "yes" // foo
+"#;
+
+    assert_snapshot!(format(input), @"option yes");
+}
+
+#[test]
+fn format_comment_newline_indented() {
+    let input = r#"
+input {
+    natural-scroll
+    // accel-speed 0.2
+    // accel-profile \"flat\"
+}
+"#;
+
+    assert_snapshot!(format(input), @r#"
+    input {
+        natural-scroll
+     // accel-speed 0.2
+        // accel-profile \"flat\"
+    }
+    "#);
+}
+
+#[test]
+fn format_remove_unnecessary_space() {
+    let input = r#"
+binds  {
+    Mod+o   hotkey-overlay-title  =  "null"  {  show-hotkey-overlay;  }
+}
+"#;
+
+    assert_snapshot!(format(input), @r#"
+    binds {
+        Mod+o hotkey-overlay-title="null" {
+            show-hotkey-overlay
+        }
+    }
+    "#);
 }
