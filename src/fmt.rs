@@ -164,6 +164,17 @@ pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>
 }
 
 pub(crate) fn autoformat_trailing(decor: &mut String, no_comments: bool) {
+    autoformat_trailing_indented(decor, no_comments, None);
+}
+
+/// Like [`autoformat_trailing`], but re-indents each non-empty line at the
+/// given config's indent level. Used for trailing decor that lives at the
+/// statement level (between nodes, at the end of a children block).
+pub(crate) fn autoformat_trailing_indented(
+    decor: &mut String,
+    no_comments: bool,
+    indent: Option<&FormatConfig<'_>>,
+) {
     if decor.is_empty() {
         return;
     }
@@ -171,7 +182,17 @@ pub(crate) fn autoformat_trailing(decor: &mut String, no_comments: bool) {
     let mut result = String::new();
     if !decor.is_empty() && !no_comments {
         for comment in decor.lines() {
-            writeln!(result, "{comment}").unwrap();
+            let trimmed = comment.trim();
+            if trimmed.is_empty() {
+                writeln!(result).unwrap();
+                continue;
+            }
+            if let Some(config) = indent {
+                for _ in 0..config.indent_level {
+                    result.push_str(config.indent);
+                }
+            }
+            writeln!(result, "{trimmed}").unwrap();
         }
     }
     *decor = result;

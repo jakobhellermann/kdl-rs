@@ -148,17 +148,12 @@ input {
     assert_snapshot!(format(input), @r#"
     input {
         natural-scroll
-    // accel-speed 0.2
+        // accel-speed 0.2
         // accel-profile \"flat\"
     }
     "#);
 }
 
-// BUG: First comment line in a children block is captured as the previous
-// node's trailing decor and rendered without the children-block indent,
-// producing flush-left output. Subsequent comment lines go through
-// autoformat_leading on the next node and get proper indentation. The
-// asymmetry is visible above and pinned by this regression test.
 #[test]
 fn format_comment_only_inside_children() {
     let input = r#"
@@ -167,8 +162,8 @@ input {
 }
 "#;
     assert_snapshot!(format(input), @"
-    input {// just a comment, no nodes
-
+    input {
+        // just a comment, no nodes
     }
     ");
 }

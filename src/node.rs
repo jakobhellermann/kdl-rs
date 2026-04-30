@@ -290,7 +290,7 @@ impl KdlNode {
         {
             crate::fmt::autoformat_leading(leading, config, is_first);
             crate::fmt::autoformat_trailing(before_terminator, config.no_comments);
-            crate::fmt::autoformat_trailing(trailing, config.no_comments);
+            crate::fmt::autoformat_trailing_indented(trailing, config.no_comments, Some(config));
             *trailing = trailing.trim().into();
             // A single-line comment is itself a valid node terminator (it
             // ends in a newline), so preserve it instead of overwriting with
@@ -335,8 +335,16 @@ impl KdlNode {
                 ..*config
             });
             if let Some(KdlDocumentFormat { leading, trailing }) = children.format_mut() {
-                *leading = leading.trim().into();
-                leading.push('\n');
+                // Strip trailing whitespace from children.leading: the first
+                // child's own `leading` provides its indentation, so leaving
+                // the indent here would double it. Keep the content (which
+                // may include comment-only blocks) and ensure the block
+                // starts on a new line after `{`.
+                *leading = leading.trim_end_matches([' ', '\t']).into();
+                if !leading.starts_with('\n') {
+                    leading.insert(0, '\n');
+                }
+                // Closing `}` sits at the parent's indent level.
                 for _ in 0..config.indent_level {
                     trailing.push_str(config.indent);
                 }

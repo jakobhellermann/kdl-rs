@@ -259,9 +259,17 @@ impl KdlDocument {
             has_nodes = true;
             node.autoformat_config_inner(config, i == 0);
         }
-        if let Some(KdlDocumentFormat { trailing, .. }) = (*self).format_mut() {
-            crate::fmt::autoformat_trailing(trailing, config.no_comments);
-            if !has_nodes {
+        if let Some(KdlDocumentFormat {
+            leading, trailing, ..
+        }) = (*self).format_mut()
+        {
+            crate::fmt::autoformat_trailing_indented(trailing, config.no_comments, Some(config));
+            // If the block is otherwise empty (no nodes, no leading content),
+            // make sure there's at least one newline so the closing brace
+            // doesn't end up on the same line as the opening one. When the
+            // leading already supplies a newline (e.g. comment-only blocks),
+            // a second `\n` would introduce a spurious blank line.
+            if !has_nodes && !leading.contains('\n') && !trailing.contains('\n') {
                 trailing.push('\n');
             }
         };
