@@ -105,7 +105,7 @@ spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc fals
     spawn-at-startup swayosd-server
     spawn-at-startup "~/.local/share/scripts/launch-waybar"
     spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc false"
-     // TODO
+    // TODO
     // - screenshot window
     // - toggle column for next window
     "#);
@@ -120,7 +120,7 @@ option "yes"
 
     assert_snapshot!(format(input), @"
     option yes
-     // TODO
+    // TODO
     ");
 }
 
@@ -146,9 +146,52 @@ input {
     assert_snapshot!(format(input), @r#"
     input {
         natural-scroll
-     // accel-speed 0.2
+    // accel-speed 0.2
         // accel-profile \"flat\"
     }
+    "#);
+}
+
+// BUG: First comment line in a children block is captured as the previous
+// node's trailing decor and rendered without the children-block indent,
+// producing flush-left output. Subsequent comment lines go through
+// autoformat_leading on the next node and get proper indentation. The
+// asymmetry is visible above and pinned by this regression test.
+#[test]
+fn format_comment_only_inside_children() {
+    let input = r#"
+input {
+    // just a comment, no nodes
+}
+"#;
+    assert_snapshot!(format(input), @"
+    input {// just a comment, no nodes
+
+    }
+    ");
+}
+
+// BUG: Multiple top-level comments separated by blank lines collapse the
+// blank lines, even though blank lines often carry intentional grouping.
+#[test]
+fn format_blank_lines_between_top_level_comments() {
+    let input = r#"
+// first
+
+// second
+"#;
+    assert_snapshot!(format(input), @r#"
+    // first
+    // second
+    "#);
+}
+
+#[test]
+fn format_semicolon_terminator() {
+    let input = r#"node "a"; node "b""#;
+    assert_snapshot!(format(input), @r#"
+    node a
+    node b
     "#);
 }
 

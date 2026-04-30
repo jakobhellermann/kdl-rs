@@ -140,9 +140,6 @@ pub(crate) fn autoformat_trailing(decor: &mut String, no_comments: bool) {
     *decor = decor.trim().to_string();
     let mut result = String::new();
     if !decor.is_empty() && !no_comments {
-        if decor.trim_start() == &decor[..] {
-            write!(result, " ").unwrap();
-        }
         for comment in decor.lines() {
             writeln!(result, "{comment}").unwrap();
         }
