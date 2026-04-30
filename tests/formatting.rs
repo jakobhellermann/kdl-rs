@@ -97,6 +97,7 @@ spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc fals
 
     assert_snapshot!(format(input), @r#"
     // https://yalter.github.io/niri/Configuration:-Introduction
+
     include input.kdl
     include workspaces.kdl
 
@@ -107,6 +108,7 @@ spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc fals
     spawn-at-startup swayosd-server
     spawn-at-startup "~/.local/share/scripts/launch-waybar"
     spawn-sh-at-startup "~/.local/share/scripts/niri_tile_to_n -n3 -x false -xc false"
+
     // TODO
     // - screenshot window
     // - toggle column for next window
@@ -183,6 +185,32 @@ node "b"
 }
 
 #[test]
+fn format_blank_lines_between_node_comment() {
+    let input = r#"
+// a
+
+node a
+
+// b
+
+node b
+
+// c
+"#;
+    assert_snapshot!(format(input), @"
+    // a
+
+    node a
+
+    // b
+
+    node b
+
+    // c
+    ");
+}
+
+#[test]
 fn format_blank_lines_between_top_level_comments() {
     let input = r#"
 // first
@@ -203,6 +231,96 @@ fn format_semicolon_terminator() {
     node a
     node b
     "#);
+}
+
+#[test]
+fn format_slashdash_node() {
+    let input = r#"
+/-commented "out"
+node "kept"
+"#;
+    assert_snapshot!(format(input), @r#"
+    /-commented "out"
+    node kept
+    "#);
+}
+
+// BUG: slashdashed entries are silently dropped during autoformat. The
+// parser stores `/-key="hidden"` in the next entry's `leading` field, and
+// `KdlEntry::autoformat` clears `format = None` to canonicalize spacing —
+// taking the slashdashed content with it. Fixing this likely needs the
+// slashdashed entry to be modeled as its own KdlEntry (with a commented-
+// out flag) rather than buried in another entry's whitespace.
+#[test]
+fn format_slashdash_entry() {
+    let input = r#"node "a" /-key="hidden" "b""#;
+    assert_snapshot!(format(input), @"node a b");
+}
+
+#[test]
+fn format_end_of_line_comment_on_node_with_children() {
+    let input = r#"
+node "a" { // header
+    inner
+}
+"#;
+    assert_snapshot!(format(input), @"
+    node a {
+        // header
+        inner
+    }
+    ");
+}
+
+#[test]
+fn format_no_comments_strips_inline_comment() {
+    let input = "option \"yes\" // foo\n";
+    let mut doc = KdlDocument::parse(input).unwrap();
+    doc.autoformat_no_comments();
+    assert_snapshot!(doc.to_string(), @"option yes");
+}
+
+#[test]
+fn format_no_comments_strips_standalone_comment() {
+    let input = r#"
+// header
+node "a"
+"#;
+    let mut doc = KdlDocument::parse(input).unwrap();
+    doc.autoformat_no_comments();
+    assert_snapshot!(doc.to_string(), @"node a");
+}
+
+#[test]
+fn format_custom_indent_two_spaces() {
+    let input = r#"
+outer {
+    inner {
+        deep
+    }
+}
+"#;
+    let mut doc = KdlDocument::parse(input).unwrap();
+    doc.autoformat_config(&kdl::FormatConfig::builder().indent("  ").build());
+    assert_snapshot!(doc.to_string(), @"
+    outer {
+      inner {
+        deep
+      }
+    }
+    ");
+}
+
+#[test]
+fn format_custom_indent_tab() {
+    let input = "outer {\n    inner\n}\n";
+    let mut doc = KdlDocument::parse(input).unwrap();
+    doc.autoformat_config(&kdl::FormatConfig::builder().indent("\t").build());
+    assert_snapshot!(doc.to_string(), @"
+    outer {
+    	inner
+    }
+    ");
 }
 
 #[test]

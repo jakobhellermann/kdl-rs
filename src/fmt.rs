@@ -131,6 +131,17 @@ pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>
     for _ in 0..blank_lines_before {
         result.push('\n');
     }
+    // Detect a blank line *between* the last comment line and the node
+    // itself: encoded as two-or-more trailing newlines on the original
+    // string (one to terminate the last comment, plus one per blank line).
+    let trailing_blank_after_comments = leading
+        .bytes()
+        .rev()
+        .take_while(|&b| b == b'\n' || b == b' ' || b == b'\t')
+        .filter(|&b| b == b'\n')
+        .count()
+        .saturating_sub(1)
+        > 0;
     if !config.no_comments {
         let input = leading.trim();
         if !input.is_empty() {
@@ -155,6 +166,9 @@ pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>
                 writeln!(result, "{trimmed}").unwrap();
                 first = false;
             }
+            if trailing_blank_after_comments {
+                result.push('\n');
+            }
         }
     }
     for _ in 0..config.indent_level {
@@ -178,8 +192,18 @@ pub(crate) fn autoformat_trailing_indented(
     if decor.is_empty() {
         return;
     }
+    // A blank line between the previous node and the start of the trailing
+    // decor is encoded as one or more leading newlines: the previous node
+    // already terminated itself, so any newline here represents a blank.
+    let leading_blank = decor
+        .bytes()
+        .take_while(|&b| b == b'\n' || b == b' ' || b == b'\t')
+        .any(|b| b == b'\n');
     *decor = decor.trim().to_string();
     let mut result = String::new();
+    if leading_blank && !decor.is_empty() && !no_comments {
+        result.push('\n');
+    }
     if !decor.is_empty() && !no_comments {
         for comment in decor.lines() {
             let trimmed = comment.trim();
