@@ -171,8 +171,24 @@ input {
     ");
 }
 
-// BUG: Multiple top-level comments separated by blank lines collapse the
-// blank lines, even though blank lines often carry intentional grouping.
+// BUG: Blank lines between top-level nodes are collapsed, even though blank
+// lines often carry intentional grouping (see also `format_example`, which
+// loses blank lines between `include`/`screenshot-path`/`spawn-at-startup`
+// groups).
+#[test]
+fn format_blank_lines_between_top_level_nodes() {
+    let input = r#"
+node "a"
+
+node "b"
+"#;
+    assert_snapshot!(format(input), @r#"
+    node a
+    node b
+    "#);
+}
+
+// BUG: Same as above, but for comments rather than nodes.
 #[test]
 fn format_blank_lines_between_top_level_comments() {
     let input = r#"
