@@ -59,6 +59,13 @@ fn ensure_v1_preserves_raw_string_with_backslash_slash() {
 }
 
 #[track_caller]
+fn format_no_comments(input: &str) -> String {
+    let mut doc = KdlDocument::parse_v2(input).unwrap();
+    doc.autoformat_no_comments();
+    doc.to_string()
+}
+
+#[track_caller]
 fn format(input: &str) -> String {
     let mut doc = match KdlDocument::parse_v2(input) {
         Ok(doc) => doc,
@@ -314,6 +321,101 @@ node "a"
     let mut doc = KdlDocument::parse(input).unwrap();
     doc.autoformat_no_comments();
     assert_snapshot!(doc.to_string(), @"node a");
+}
+
+// Blank lines that exist purely to space out comments collapse along with
+// the comments themselves.
+#[test]
+fn format_no_comments_collapses_comment_only_blanks() {
+    let input = r#"
+// a
+
+// b
+node "x"
+"#;
+    assert_snapshot!(format_no_comments(input), @"node x");
+}
+
+// Blank lines between actual nodes are preserved even when comments are
+// stripped.
+#[test]
+fn format_no_comments_keeps_blank_lines_between_nodes() {
+    let input = r#"
+node "a"
+
+// in between
+node "b"
+"#;
+    assert_snapshot!(format_no_comments(input), @"
+    node a
+
+    node b
+    ");
+}
+
+// A children block that contained only comments collapses to an empty inline
+// `{ }` once the comments are gone.
+#[test]
+fn format_no_comments_empties_comment_only_children() {
+    let input = r#"
+input {
+    // just a comment, no nodes
+}
+"#;
+    assert_snapshot!(format_no_comments(input), @"input { }");
+}
+
+// The end-of-line comment after `{` is dropped; the inner node renders
+// normally.
+#[test]
+fn format_no_comments_strips_end_of_line_comment_on_children() {
+    let input = r#"
+node "a" { // header
+    inner
+}
+"#;
+    assert_snapshot!(format_no_comments(input), @"
+    node a {
+        inner
+    }
+    ");
+}
+
+// A slashdashed node uses `/-` (not `//`), so semantically it is not a
+// comment — but the parser puts it in leading decor, which `no_comments`
+// drops wholesale. Pinned to surface the behavior; arguably a bug.
+#[test]
+fn format_no_comments_drops_slashdash_node() {
+    let input = r#"
+/-commented "out"
+node "kept"
+"#;
+    assert_snapshot!(format_no_comments(input), @"node kept");
+}
+
+// Same wholesale-drop applies to multi-line slashdashed blocks.
+#[test]
+fn format_no_comments_drops_slashdash_block_too() {
+    let input = r#"
+// header
+/-window-rule {
+    geometry-corner-radius 8
+}
+// trailer
+node
+"#;
+    assert_snapshot!(format_no_comments(input), @"node");
+}
+
+// Inline comment that the v1 parser stuffs into `trailing` (rather than the
+// terminator) is also stripped.
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_no_comments_strips_inline_comment() {
+    let input = "option \"yes\" // foo\n";
+    let mut doc = KdlDocument::parse_v1(input).unwrap();
+    doc.autoformat_no_comments();
+    assert_snapshot!(doc.to_string(), @"option yes");
 }
 
 #[test]
