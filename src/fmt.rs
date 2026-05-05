@@ -111,85 +111,93 @@ impl<'a> FormatConfigBuilder<'a> {
     }
 }
 
-pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>, is_first: bool) {
-    let mut result = String::new();
-    // Count leading newlines to detect blank lines before this item. For
-    // a non-first item (subsequent node, or after another comment), a
-    // single `\n` is "blank line before me" because the previous content
-    // already terminated itself. For a first item (after opening brace or
-    // document start), the first `\n` is just "I'm on a new line" and
-    // doesn't represent a blank.
-    let leading_newlines = leading.bytes().take_while(|&b| b == b'\n').count();
-    let blank_lines_before = if is_first {
-        leading_newlines.saturating_sub(1)
-    } else {
-        leading_newlines
-    };
-    // Cap at 1 to avoid runaway whitespace; one blank line is enough to
-    // signal grouping.
-    let blank_lines_before = blank_lines_before.min(1);
-    for _ in 0..blank_lines_before {
-        result.push('\n');
+/// Returns true when every non-blank line in `s` starts with `//`. Used to
+/// decide whether decor is safe to re-indent: if the block contains any
+/// non-comment content (e.g. a slashdashed node with children), we have to
+/// preserve it verbatim because we don't know how to format it.
+fn all_lines_are_comments(s: &str) -> bool {
+    s.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .all(|l| l.starts_with("//"))
+}
+
+fn write_indent(out: &mut String, config: &FormatConfig<'_>) {
+    for _ in 0..config.indent_level {
+        out.push_str(config.indent);
     }
+}
+
+/// Emit `content` (already trimmed) as a sequence of comment lines,
+/// re-indented at `indent`'s level. Blank lines between comments are
+/// preserved as bare `\n`. Caller guarantees `all_lines_are_comments`.
+fn write_comment_block(out: &mut String, content: &str, indent: Option<&FormatConfig<'_>>) {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            out.push('\n');
+            continue;
+        }
+        if let Some(cfg) = indent {
+            write_indent(out, cfg);
+        }
+        writeln!(out, "{trimmed}").unwrap();
+    }
+}
+
+/// Emit decor content, either as a re-indented comment block (if every
+/// non-blank line is a `//` comment) or verbatim (slashdashed nodes etc.,
+/// which we don't know how to re-indent). Always ends with `\n` when
+/// non-empty.
+fn write_decor_content(out: &mut String, content: &str, indent: Option<&FormatConfig<'_>>) {
+    if all_lines_are_comments(content) {
+        write_comment_block(out, content, indent);
+    } else {
+        out.push_str(content);
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+}
+
+pub(crate) fn autoformat_leading(leading: &mut String, config: &FormatConfig<'_>, is_first: bool) {
+    // Count leading newlines to detect a blank line before this item. For
+    // a non-first item, a single `\n` is "blank line before me" because the
+    // previous content already terminated itself. For a first item (after
+    // opening brace or document start), the first `\n` is just "I'm on a
+    // new line" and doesn't represent a blank. Cap at 1 — one blank line is
+    // enough to signal grouping.
+    let leading_newlines = leading.bytes().take_while(|&b| b == b'\n').count();
+    let blank_before = if is_first {
+        leading_newlines > 1
+    } else {
+        leading_newlines > 0
+    };
     // Detect a blank line *between* the last comment line and the node
-    // itself: encoded as two-or-more trailing newlines on the original
-    // string (one to terminate the last comment, plus one per blank line).
+    // itself: two-or-more trailing newlines (one to terminate the last
+    // comment, plus one per blank line).
     let trailing_blank_after_comments = leading
         .bytes()
         .rev()
-        .take_while(|&b| b == b'\n' || b == b' ' || b == b'\t')
+        .take_while(|&b| matches!(b, b'\n' | b' ' | b'\t'))
         .filter(|&b| b == b'\n')
         .count()
-        .saturating_sub(1)
-        > 0;
+        > 1;
+
+    let mut result = String::new();
+    if blank_before {
+        result.push('\n');
+    }
     if !config.no_comments {
-        let input = leading.trim();
-        if !input.is_empty() {
-            // The leading decor may contain multi-line constructs we don't
-            // know how to re-indent (slashdashed nodes with children, mostly).
-            // Detect "every non-blank line is a `//` comment" — only then is
-            // it safe to trim and re-indent. Otherwise preserve verbatim.
-            let all_lines_are_comments = input
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .all(|l| l.starts_with("//"));
-            if all_lines_are_comments {
-                // Preserve blank lines between comment lines too.
-                let mut prev_blank = false;
-                let mut first = true;
-                for line in input.lines() {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        if !first {
-                            prev_blank = true;
-                        }
-                        continue;
-                    }
-                    if prev_blank {
-                        result.push('\n');
-                        prev_blank = false;
-                    }
-                    for _ in 0..config.indent_level {
-                        result.push_str(config.indent);
-                    }
-                    writeln!(result, "{trimmed}").unwrap();
-                    first = false;
-                }
-            } else {
-                result.push_str(input);
-                if !result.ends_with('\n') {
-                    result.push('\n');
-                }
-            }
+        let content = leading.trim();
+        if !content.is_empty() {
+            write_decor_content(&mut result, content, Some(config));
             if trailing_blank_after_comments {
                 result.push('\n');
             }
         }
     }
-    for _ in 0..config.indent_level {
-        result.push_str(config.indent);
-    }
+    write_indent(&mut result, config);
     *leading = result;
 }
 
@@ -214,17 +222,15 @@ pub(crate) fn autoformat_trailing_indented(
     indent: Option<&FormatConfig<'_>>,
     preceded_by_content: bool,
 ) {
-    if decor.is_empty() {
+    if decor.is_empty() || no_comments {
+        if no_comments {
+            decor.clear();
+        }
         return;
     }
-    // A blank line between the previous node and the start of the trailing
-    // decor is encoded as one or more leading newlines: the previous node
-    // already terminated itself, so any newline here represents a blank.
-    // When nothing precedes us, the first newline is just the line break
-    // after the opening brace and is not a blank.
     let leading_newlines = decor
         .bytes()
-        .take_while(|&b| b == b'\n' || b == b' ' || b == b'\t')
+        .take_while(|&b| matches!(b, b'\n' | b' ' | b'\t'))
         .filter(|&b| b == b'\n')
         .count();
     let leading_blank = if preceded_by_content {
@@ -232,42 +238,13 @@ pub(crate) fn autoformat_trailing_indented(
     } else {
         leading_newlines > 1
     };
-    *decor = decor.trim().to_string();
+    let content = decor.trim();
     let mut result = String::new();
-    if leading_blank && !decor.is_empty() && !no_comments {
-        result.push('\n');
-    }
-    if !decor.is_empty() && !no_comments {
-        // The decor may contain multi-line constructs we don't know how to
-        // re-indent (slashdashed nodes with children, mostly). If every
-        // non-blank line starts with `//`, it's safe to trim and re-indent;
-        // otherwise preserve verbatim. Mirrors the same rule in
-        // `autoformat_leading`.
-        let all_lines_are_comments = decor
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.is_empty())
-            .all(|l| l.starts_with("//"));
-        if all_lines_are_comments {
-            for comment in decor.lines() {
-                let trimmed = comment.trim();
-                if trimmed.is_empty() {
-                    writeln!(result).unwrap();
-                    continue;
-                }
-                if let Some(config) = indent {
-                    for _ in 0..config.indent_level {
-                        result.push_str(config.indent);
-                    }
-                }
-                writeln!(result, "{trimmed}").unwrap();
-            }
-        } else {
-            result.push_str(decor);
-            if !result.ends_with('\n') {
-                result.push('\n');
-            }
+    if !content.is_empty() {
+        if leading_blank {
+            result.push('\n');
         }
+        write_decor_content(&mut result, content, indent);
     }
     *decor = result;
 }
