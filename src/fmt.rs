@@ -211,11 +211,11 @@ pub(crate) fn autoformat_trailing(decor: &mut String, no_comments: bool) {
 ///
 /// `preceded_by_content` is true when something appeared before this
 /// trailing decor in the same container (a previous node, or the outer
-/// document). When false (e.g. a children block with no nodes, where the
-/// trailing decor is the only content), a single leading newline is just
-/// "this content starts on a new line after the opening brace" rather
-/// than a blank line, mirroring the same distinction in
-/// [`autoformat_leading`].
+/// document). When false (e.g. a v1-parsed children block whose
+/// comment-only contents land in `trailing` instead of `leading`), a
+/// single leading newline is just "this content starts on a new line
+/// after the opening brace" rather than a blank line, mirroring the same
+/// distinction in [`autoformat_leading`].
 pub(crate) fn autoformat_trailing_indented(
     decor: &mut String,
     no_comments: bool,

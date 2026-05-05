@@ -407,6 +407,22 @@ node
     assert_snapshot!(format_no_comments(input), @"node");
 }
 
+// Trailing comment on the document (after the last node) lives in
+// `doc.trailing` and must also be stripped under `no_comments`.
+#[test]
+fn format_no_comments_strips_doc_trailing_comment() {
+    let input = "node\n// trailer\n";
+    assert_snapshot!(format_no_comments(input), @"node");
+}
+
+// Same shape with a blank line before the trailing comment — still
+// stripped, no orphan blank line left behind.
+#[test]
+fn format_no_comments_strips_doc_trailing_comment_with_blank() {
+    let input = "node\n\n// trailer\n";
+    assert_snapshot!(format_no_comments(input), @"node");
+}
+
 // Inline comment that the v1 parser stuffs into `trailing` (rather than the
 // terminator) is also stripped.
 #[test]
@@ -639,6 +655,18 @@ trackpoint {
         // natural-scroll
     }
     "#);
+}
+
+// v1-routed comment-only children block with a blank line before the
+// comment: the blank line is preserved. Pins the `leading_newlines > 1`
+// branch of `autoformat_trailing_indented` (uses assert_eq! because
+// insta's inline-snapshot normalization swallows leading blank lines
+// inside the block).
+#[test]
+#[cfg(feature = "v1")]
+fn format_v1_children_comment_with_leading_blank() {
+    let input = "trackpoint {\n\n    // off\n}\n";
+    assert_eq!(format_v1(input), "trackpoint {\n\n    // off\n}\n");
 }
 
 // Slashdashed block with mis-indented inner content: autoformat preserves
