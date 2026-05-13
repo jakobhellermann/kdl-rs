@@ -222,10 +222,8 @@ pub(crate) fn autoformat_trailing_indented(
     indent: Option<&FormatConfig<'_>>,
     preceded_by_content: bool,
 ) {
-    if decor.is_empty() || no_comments {
-        if no_comments {
-            decor.clear();
-        }
+    if no_comments {
+        decor.clear();
         return;
     }
     let leading_newlines = decor
